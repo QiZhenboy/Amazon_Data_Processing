@@ -92,7 +92,7 @@ with tab1:
 # ===================== 功能2：SIF 关键词清洗（修复版：支持多文件） =====================
 with tab2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("🎯 SIF 关键词数据清洗（亚马逊专用）")
+    st.subheader("🎯 SIF 关键词数据清洗")
     st.caption("自定义：排名阈值 + 保留列；支持多文件批量上传、合并清洗、自动去重并保留最优排名")
 
     # 1. 上传文件（修复：支持多文件）
