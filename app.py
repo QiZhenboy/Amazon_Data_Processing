@@ -37,15 +37,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ===================== 标题 =====================
-st.markdown('<p class="main-title">📦 亚马逊数据处理工具箱</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">📦 亚马逊数据处理</p>', unsafe_allow_html=True)
 
 # ===================== 选项卡 =====================
-tab1, tab2 = st.tabs(["✅ 多文件合并", "✅ SIF关键词清洗"])
+tab1, tab2 = st.tabs(["✅ 钓鱼广告文件合并", "✅ SIF关键词清洗"])
 
 # ===================== 功能1：文件合并 =====================
 with tab1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("📂 Excel / CSV 多文件合并")
+    st.subheader("📂 Excel表格文件合并")
     st.caption("支持批量上传文件，自动合并所有工作表，保留来源信息")
 
     uploaded_files = st.file_uploader(
