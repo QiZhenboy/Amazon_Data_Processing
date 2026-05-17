@@ -4,7 +4,7 @@ from io import BytesIO
 
 # ===================== 页面设置 =====================
 st.set_page_config(
-    page_title="亚马逊数据处理工具箱",
+    page_title="亚马逊数据处理",
     page_icon="📊",
     layout="wide"
 )
