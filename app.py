@@ -4,7 +4,7 @@ from io import BytesIO
 
 # ===================== 页面设置 =====================
 st.set_page_config(
-    page_title="亚马逊数据工具箱",
+    page_title="亚马逊数据处理工具箱",
     page_icon="📊",
     layout="wide"
 )
@@ -89,67 +89,102 @@ with tab1:
             st.download_button("📥 下载合并结果", output.getvalue(), "合并结果.xlsx")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ===================== 功能2：SIF 关键词清洗 =====================
+# ===================== 功能2：SIF 关键词清洗（升级版） =====================
 with tab2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("🎯 SIF 关键词数据清洗（亚马逊专用）")
-    st.caption("自动：保留排名<30 + 去重最优排名 + 只保留需要的列")
+    st.caption("自定义：排名阈值 + 保留列；自动去重并保留最优排名")
 
+    # 1. 上传文件
     uploaded_file = st.file_uploader("上传SIF导出的表格", type=["xlsx", "csv"], key="sif")
 
-    if uploaded_file and st.button("🧹 开始清洗数据", type="primary"):
-        with st.spinner("正在清洗..."):
-            # 读取（跳过第一行）
+    if uploaded_file:
+        # 2. 先读取文件，获取所有列名，给用户选择
+        with st.spinner("正在读取文件，获取列名..."):
             try:
                 if uploaded_file.name.endswith(".csv"):
-                    df = pd.read_csv(uploaded_file, skiprows=1)
+                    temp_df = pd.read_csv(uploaded_file, skiprows=1)
                 else:
-                    df = pd.read_excel(uploaded_file, skiprows=1)
-            except:
-                st.error("读取失败，请检查文件格式")
+                    temp_df = pd.read_excel(uploaded_file, skiprows=1)
+            except Exception as e:
+                st.error(f"读取文件失败：{str(e)}")
                 st.stop()
 
-            # 必须列
-            must_cols = ["关键词", "自然排名"]
-            for c in must_cols:
-                if c not in df.columns:
-                    st.error(f"缺少必要列：{c}")
-                    st.stop()
+        # 3. 用户配置区域
+        st.subheader("⚙️ 清洗设置")
+        # 排名阈值
+        rank_threshold = st.number_input(
+            "保留自然排名小于多少？",
+            min_value=1,
+            max_value=1000,
+            value=30,
+            help="例如填30，会只保留自然排名1-29的关键词"
+        )
 
-            # 保留列
-            KEEP = [
-                "关键词", "翻译", "自然排名", "周搜索趋势",
-                "关键词建议竞价（固定·精准)推荐", "关键词点击转化率"
-            ]
-            exist_keep = [c for c in KEEP if c in df.columns]
-            df = df[exist_keep]
+        # 自定义保留列（默认选中常用列）
+        default_cols = [
+            "关键词", "翻译", "自然排名", "周搜索趋势",
+            "关键词建议竞价（固定·精准)推荐", "关键词点击转化率"
+        ]
+        # 只保留文件里实际存在的列作为默认选中项
+        valid_default_cols = [col for col in default_cols if col in temp_df.columns]
+        keep_cols = st.multiselect(
+            "选择要保留的列",
+            options=temp_df.columns.tolist(),
+            default=valid_default_cols,
+            help="你可以根据需要勾选要保留的列，不勾选的列会被删除"
+        )
 
-            # 排名 <30
-            df["自然排名"] = pd.to_numeric(df["自然排名"], errors="coerce")
-            df = df[df["自然排名"].notna() & (df["自然排名"] < 30)]
+        # 必须列检查（关键词、自然排名必须保留）
+        if "关键词" not in keep_cols or "自然排名" not in keep_cols:
+            st.warning("⚠️ 请务必勾选「关键词」和「自然排名」，否则无法去重和筛选！")
+            st.stop()
 
-            # 清洗关键词
-            df["关键词"] = df["关键词"].astype(str).str.strip().str.lower()
-            df = df[df["关键词"] != ""]
+        # 4. 开始清洗按钮
+        if st.button("🧹 开始清洗数据", type="primary"):
+            with st.spinner("正在清洗数据..."):
+                df = temp_df.copy()
 
-            # 去重（保留最优排名）
-            if len(df) > 0:
-                best_idx = df.groupby("关键词")["自然排名"].idxmin()
-                final = df.loc[best_idx].reset_index(drop=True)
+                # 只保留用户选择的列
+                df = df[keep_cols]
+
+                # 筛选排名 < 用户设置的阈值
+                df["自然排名"] = pd.to_numeric(df["自然排名"], errors="coerce")
+                df = df[df["自然排名"].notna() & (df["自然排名"] < rank_threshold)]
+
+                # 清洗关键词
+                df["关键词"] = df["关键词"].astype(str).str.strip().str.lower()
+                df = df[df["关键词"] != ""]
+
+                # 去重：保留排名最好（数字最小）的一条
+                if len(df) > 0:
+                    best_idx = df.groupby("关键词")["自然排名"].idxmin()
+                    final_df = df.loc[best_idx].reset_index(drop=True)
+                else:
+                    final_df = pd.DataFrame()
+
+            # 5. 显示结果
+            if len(final_df) == 0:
+                st.warning("⚠️ 没有符合条件的数据，请检查排名阈值或文件内容")
             else:
-                final = pd.DataFrame()
+                st.success(f"✅ 清洗完成！原始有效数据：{len(df)} → 去重后：{len(final_df)}")
+                st.dataframe(final_df, use_container_width=True)
 
-        if len(final) == 0:
-            st.warning("⚠️ 没有符合条件的数据")
-        else:
-            st.success(f"✅ 清洗完成！原始：{len(df)} → 去重后：{len(final)}")
-            st.dataframe(final, use_container_width=True)
+                # 6. 下载结果
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    final_df.to_excel(writer, index=False)
+                st.download_button(
+                    label="📥 下载SIF清洗结果",
+                    data=output.getvalue(),
+                    file_name="SIF清洗结果.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
-            out = BytesIO()
-            with pd.ExcelWriter(out, engine="openpyxl") as w:
-                final.to_excel(w, index=False)
-            st.download_button("📥 下载SIF清洗结果", out.getvalue(), "SIF清洗结果.xlsx")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ===================== 底部 =====================
-st.markdown("<br><div style='text-align:center; color:gray; font-size:14px'>亚马逊专用数据工具 | 安全·本地处理·不留档案</div>", unsafe_allow_html=True)
+st.markdown(
+    "<br><div style='text-align:center; color:gray; font-size:14px'>亚马逊专用数据工具 | 安全·本地处理·不留档案</div>",
+    unsafe_allow_html=True
+)
